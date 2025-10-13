@@ -1,0 +1,128 @@
+@startuml Furniture Production Database
+
+!define TABLE entity
+!define PK <<PK>>
+!define FK <<FK>>
+!define UNIQUE <<unique>>
+
+' Main tables
+entity "products" as products {
+  PK product_id : INTEGER
+  UNIQUE product_name : VARCHAR(100)
+  price : DECIMAL(10,2)
+  furniture_type : VARCHAR(50)
+  created_date : DATE
+}
+
+entity "components" as components {
+  PK component_id : INTEGER
+  component_name : VARCHAR(100)
+  price : DECIMAL(10,2)
+  process_number : INTEGER
+  created_date : DATE
+}
+
+entity "materials" as materials {
+  PK material_id : INTEGER
+  UNIQUE material_name : VARCHAR(100)
+  price : DECIMAL(10,2)
+  unit_of_measure : VARCHAR(20)
+  stock_quantity : INTEGER
+}
+
+entity "operations_catalog" as operations {
+  PK operation_id : INTEGER
+  operation_name : VARCHAR(100)
+  hourly_rate : DECIMAL(10,2)
+  hours_required : DECIMAL(5,2)
+  created_date : DATE
+}
+
+' Junction tables
+entity "product_components" as product_comp {
+  PK,FK product_id : INTEGER
+  PK,FK component_id : INTEGER
+  quantity : INTEGER
+}
+
+entity "production_process" as production_process {
+  PK,FK component_id : INTEGER
+  PK,FK material_id : INTEGER
+  PK,FK operation_id : INTEGER
+  material_quantity : DECIMAL(8,2)
+}
+
+' Relationships between tables
+products ||--o{ product_comp : "contains"
+components ||--o{ product_comp : "used in"
+
+components ||--o{ production_process : "produced through"
+materials ||--o{ production_process : "used in"
+operations ||--o{ production_process : "performed in"
+
+' Views
+entity "Views" as views {
+  expensive_products
+  full_component_info
+  product_costs
+  full_production_process
+  sales_profit
+}
+
+' Triggers
+entity "Triggers" as triggers {
+  trigger_update_material_stock
+  trigger_update_product_cost
+}
+
+' Indexes
+entity "Indexes" as indexes {
+  idx_products_type
+  idx_materials_price
+  idx_components_price
+  idx_products_price
+  idx_production_process_operation
+}
+
+' Relationships with views and triggers
+products ..> views : "used in"
+components ..> views : "used in"
+materials ..> views : "used in"
+operations ..> views : "used in"
+
+production_process ..> triggers : "activates"
+product_comp ..> triggers : "activates"
+
+products ..> indexes : "indexed"
+materials ..> indexes : "indexed"
+components ..> indexes : "indexed"
+production_process ..> indexes : "indexed"
+
+note right of products
+  Main table for furniture
+  products with prices and types
+end note
+
+note right of components
+  Component parts for
+  product manufacturing
+end note
+
+note right of materials
+  Raw materials and supplies
+  for production
+end note
+
+note right of operations
+  Catalog of technological
+  operations with time norms
+end note
+
+note bottom of views
+  Views for reports:
+  - Product costs
+  - Production process
+  - Sales profit
+end note
+
+@enduml
