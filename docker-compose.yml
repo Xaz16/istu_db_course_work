@@ -11,4 +11,27 @@ services:
       - POSTGRES_DB=demo
     volumes:
       - ${DATA_PATH:-./tmp/postgress-demo-data}:/var/lib/postgresql/data
-      
+      - ./init_database.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    ports:
+      - 4000:4000
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=Passw0rd
+      - DB_NAME=demo
+      - PORT=4000
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
