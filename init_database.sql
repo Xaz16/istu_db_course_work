@@ -18,7 +18,7 @@ CREATE TABLE materials (
     material_name VARCHAR(100) NOT NULL UNIQUE,
     price DECIMAL(10,2) NOT NULL CHECK (price >= 0),
     unit_of_measure VARCHAR(20) DEFAULT 'pcs',
-    stock_quantity INTEGER DEFAULT 0 CHECK (stock_quantity >= 0)
+    stock_quantity DECIMAL(10,2) DEFAULT 0 CHECK (stock_quantity >= 0)
 );
 
 CREATE TABLE components (
@@ -68,9 +68,9 @@ SELECT
     product_id,
     product_name,
     price,
-    furniture_type
-FROM products
-WHERE price > 50000;
+    furniture_type,
+    created_date
+FROM products;
 
 CREATE VIEW full_component_info AS
 SELECT 
@@ -119,21 +119,72 @@ ORDER BY p.product_id, c.component_id, oc.operation_id;
 
 CREATE OR REPLACE FUNCTION update_material_stock()
 RETURNS TRIGGER AS $$
+DECLARE
+    quantity_diff DECIMAL(8,2);
+    new_stock DECIMAL(8,2);
 BEGIN
-    UPDATE materials 
-    SET stock_quantity = stock_quantity - NEW.material_quantity
-    WHERE material_id = NEW.material_id;
-    
-    IF (SELECT stock_quantity FROM materials WHERE material_id = NEW.material_id) < 0 THEN
-        RAISE EXCEPTION 'Insufficient material in stock! Material ID: %', NEW.material_id;
+    IF TG_OP = 'INSERT' THEN
+        UPDATE materials 
+        SET stock_quantity = stock_quantity - NEW.material_quantity
+        WHERE material_id = NEW.material_id;
+        
+        SELECT stock_quantity INTO new_stock 
+        FROM materials 
+        WHERE material_id = NEW.material_id;
+        
+        IF new_stock < 0 THEN
+            RAISE EXCEPTION 'Insufficient material in stock! Material ID: %, Available: %, Required: %', 
+                NEW.material_id, new_stock + NEW.material_quantity, NEW.material_quantity;
+        END IF;
+        
+        RETURN NEW;
+        
+    ELSIF TG_OP = 'UPDATE' THEN
+        quantity_diff := NEW.material_quantity - OLD.material_quantity;
+        
+        IF NEW.material_id != OLD.material_id THEN
+            UPDATE materials 
+            SET stock_quantity = stock_quantity + OLD.material_quantity
+            WHERE material_id = OLD.material_id;
+            
+            UPDATE materials 
+            SET stock_quantity = stock_quantity - NEW.material_quantity
+            WHERE material_id = NEW.material_id;
+            
+            SELECT stock_quantity INTO new_stock 
+            FROM materials 
+            WHERE material_id = NEW.material_id;
+        ELSE
+            UPDATE materials 
+            SET stock_quantity = stock_quantity - quantity_diff
+            WHERE material_id = NEW.material_id;
+            
+            SELECT stock_quantity INTO new_stock 
+            FROM materials 
+            WHERE material_id = NEW.material_id;
+        END IF;
+        
+        IF new_stock < 0 THEN
+            RAISE EXCEPTION 'Insufficient material in stock! Material ID: %, Available: %, Required: %', 
+                NEW.material_id, new_stock + NEW.material_quantity, NEW.material_quantity;
+        END IF;
+        
+        RETURN NEW;
+        
+    ELSIF TG_OP = 'DELETE' THEN
+        UPDATE materials 
+        SET stock_quantity = stock_quantity + OLD.material_quantity
+        WHERE material_id = OLD.material_id;
+        
+        RETURN OLD;
     END IF;
     
-    RETURN NEW;
+    RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trigger_update_material_stock
-    AFTER INSERT ON production_process
+    AFTER INSERT OR UPDATE OR DELETE ON production_process
     FOR EACH ROW
     EXECUTE FUNCTION update_material_stock();
 

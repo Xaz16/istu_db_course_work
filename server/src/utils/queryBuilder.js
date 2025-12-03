@@ -1,17 +1,19 @@
-export const buildWhere = ({ filters = {}, searchField, searchTerm }) => {
+export const buildWhere = ({ filters = {}, searchField, searchTerm, table = '' }) => {
   const clauses = [];
   const params = [];
 
   Object.entries(filters).forEach(([field, value]) => {
     if (value !== undefined && value !== null && value !== '') {
       params.push(value);
-      clauses.push(`${field} = $${params.length}`);
+      const qualifiedField = table ? `${table}.${field}` : field;
+      clauses.push(`${qualifiedField} = $${params.length}`);
     }
   });
 
   if (searchField && searchTerm) {
     params.push(`%${searchTerm}%`);
-    clauses.push(`${searchField} ILIKE $${params.length}`);
+    const qualifiedSearchField = table ? `${table}.${searchField}` : searchField;
+    clauses.push(`${qualifiedSearchField} ILIKE $${params.length}`);
   }
 
   const text = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';
@@ -27,16 +29,43 @@ export const buildSelectQuery = ({
   sortField,
   sortDirection = 'asc',
   page = 1,
-  limit = 25
+  limit = 25,
+  joins = []
 }) => {
-  const { text: whereClause, params } = buildWhere({ filters, searchField, searchTerm });
+  const { text: whereClause, params } = buildWhere({ filters, searchField, searchTerm, table });
 
-  let text = `SELECT ${columns.join(', ')} FROM ${table}${whereClause}`;
+  const joinClauses = [];
+  const joinColumns = [];
+
+  if (joins && joins.length > 0) {
+    joins.forEach((join) => {
+      const joinType = join.type || 'LEFT';
+      const joinTable = join.table;
+      const onConditions = Object.entries(join.on).map(([left, right]) => `${left} = ${right}`).join(' AND ');
+      joinClauses.push(`${joinType} JOIN ${joinTable} ON ${onConditions}`);
+
+      if (join.select && join.select.length > 0) {
+        join.select.forEach((col) => {
+          const alias = `${joinTable}_${col}`;
+          joinColumns.push(`${joinTable}.${col} AS "${alias}"`);
+        });
+      }
+    });
+  }
+
+  const baseTableColumns = columns.map(col => `${table}.${col}`).join(', ');
+  const allColumns = joinColumns.length > 0
+    ? `${baseTableColumns}, ${joinColumns.join(', ')}`
+    : baseTableColumns;
+
+  const joinClause = joinClauses.length > 0 ? ` ${joinClauses.join(' ')}` : '';
+  let text = `SELECT ${allColumns} FROM ${table}${joinClause}${whereClause}`;
   const whereParams = [...params];
 
   if (sortField) {
     const dir = sortDirection?.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
-    text += ` ORDER BY ${sortField} ${dir}`;
+    const sortColumn = columns.includes(sortField) ? `${table}.${sortField}` : sortField;
+    text += ` ORDER BY ${sortColumn} ${dir}`;
   }
 
   const safeLimit = Math.min(Number(limit) || 25, 100);

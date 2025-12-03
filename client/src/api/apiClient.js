@@ -60,3 +60,7 @@ export const submitProductWithComponents = (payload) => {
 export const fetchReport = (reportName, params) => {
   return fetch(`${API_URL}/reports/${reportName}${buildQuery(params)}`).then(handleResponse);
 };
+
+export const fetchLookup = (type) => {
+  return fetch(`${API_URL}/lookup/${type}`).then(handleResponse);
+};

@@ -29,9 +29,23 @@ const ReportViewer = ({ report }) => {
   };
 
   useEffect(() => {
-    loadReport();
+    setData([]);
+    setSummary(null);
+    setError('');
+    const defaults = {};
+    report.fields.forEach((field) => {
+      defaults[field.name] = field.defaultValue ?? '';
+    });
+    setParams(defaults);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [report.name]);
+
+  useEffect(() => {
+    if (Object.keys(params).length > 0) {
+      loadReport();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params]);
 
   const handleChange = (name, value) => {
     setParams((prev) => ({ ...prev, [name]: value }));
@@ -79,21 +93,21 @@ const ReportViewer = ({ report }) => {
             <thead>
               <tr>
                 {data[0] && Object.keys(data[0]).map((key) => (
-                  <th key={key}>{key}</th>
+                  <th key={key}>{report.columns?.[key] || key}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {data.map((row, idx) => (
                 <tr key={idx}>
-                  {Object.values(row).map((value, colIdx) => (
-                    <td key={colIdx}>{value}</td>
+                  {Object.entries(row).map(([key, value]) => (
+                    <td key={key}>{value}</td>
                   ))}
                 </tr>
               ))}
               {!data.length && (
                 <tr>
-                  <td colSpan={3}>Нет данных</td>
+                  <td colSpan={Object.keys(report.columns || {}).length || 3}>Нет данных</td>
                 </tr>
               )}
             </tbody>
@@ -106,7 +120,7 @@ const ReportViewer = ({ report }) => {
           <h4>Итоги</h4>
           <ul>
             {Object.entries(summary).map(([key, value]) => (
-              <li key={key}>{key}: {value}</li>
+              <li key={key}>{report.summaryLabels?.[key] || key}: {value}</li>
             ))}
           </ul>
         </div>

@@ -64,6 +64,10 @@ const tableConfigs = {
     primaryKey: ['product_id', 'component_id'],
     defaultSort: { field: 'product_id', direction: 'asc' },
     columns: ['product_id', 'component_id', 'quantity'],
+    joins: [
+      { type: 'LEFT', table: 'products', on: { 'product_components.product_id': 'products.product_id' }, select: ['product_name'] },
+      { type: 'LEFT', table: 'components', on: { 'product_components.component_id': 'components.component_id' }, select: ['component_name'] }
+    ],
     searchable: [],
     filterable: ['product_id'],
     schema: {
@@ -77,6 +81,11 @@ const tableConfigs = {
     primaryKey: ['component_id', 'material_id', 'operation_id'],
     defaultSort: { field: 'component_id', direction: 'asc' },
     columns: ['component_id', 'material_id', 'material_quantity', 'operation_id'],
+    joins: [
+      { type: 'LEFT', table: 'components', on: { 'production_process.component_id': 'components.component_id' }, select: ['component_name'] },
+      { type: 'LEFT', table: 'materials', on: { 'production_process.material_id': 'materials.material_id' }, select: ['material_name'] },
+      { type: 'LEFT', table: 'operations_catalog', on: { 'production_process.operation_id': 'operations_catalog.operation_id' }, select: ['operation_name'] }
+    ],
     searchable: [],
     filterable: ['component_id', 'material_id', 'operation_id'],
     schema: {

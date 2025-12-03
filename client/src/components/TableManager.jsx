@@ -3,7 +3,8 @@ import {
   fetchTable,
   createRecord,
   updateRecord,
-  deleteRecord
+  deleteRecord,
+  fetchLookup
 } from '../api/apiClient.js';
 import RecordForm from './RecordForm.jsx';
 
@@ -21,22 +22,54 @@ const TableManager = ({ table }) => {
   const [sortDirection, setSortDirection] = useState('asc');
   const [editing, setEditing] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [lookupData, setLookupData] = useState({});
 
   const filterEntries = useMemo(() => table.filterable || [], [table]);
 
-  const loadData = async (page = meta.page) => {
+  useEffect(() => {
+    const loadLookupData = async () => {
+      const lookups = new Set();
+      Object.values(table.fields).forEach((field) => {
+        if (field.type === 'select' && field.lookup) {
+          lookups.add(field.lookup);
+        }
+      });
+
+      const promises = Array.from(lookups).map(async (lookup) => {
+        try {
+          const data = await fetchLookup(lookup);
+          return { lookup, data };
+        } catch (err) {
+          console.error(`Failed to load lookup ${lookup}:`, err);
+          return { lookup, data: [] };
+        }
+      });
+
+      const results = await Promise.all(promises);
+      const lookupMap = {};
+      results.forEach(({ lookup, data }) => {
+        lookupMap[lookup] = data;
+      });
+      setLookupData(lookupMap);
+    };
+
+    loadLookupData();
+  }, [table]);
+
+  const loadData = async (page = meta.page, customParams = {}) => {
     setLoading(true);
     setError('');
     try {
-      const payload = await fetchTable(table.name, {
+      const params = {
         page,
         limit: meta.limit,
-        searchField,
-        searchTerm,
-        sortField,
-        sortDirection,
-        ...filters
-      });
+        searchField: customParams.searchField ?? searchField,
+        searchTerm: customParams.searchTerm ?? searchTerm,
+        sortField: customParams.sortField ?? sortField,
+        sortDirection: customParams.sortDirection ?? sortDirection,
+        ...(customParams.filters ?? filters)
+      };
+      const payload = await fetchTable(table.name, params);
       setRecords(payload.data);
       setMeta(payload.meta);
     } catch (err) {
@@ -47,9 +80,21 @@ const TableManager = ({ table }) => {
   };
 
   useEffect(() => {
+    const newSearchField = table.searchable && table.searchable.length > 0 ? table.searchable[0] : undefined;
+    const newSortField = Object.keys(table.fields)[0];
+    
+    setSearchField(newSearchField);
+    setSortField(newSortField);
+    setSearchTerm('');
+    setFilters({});
+    setMeta(prev => ({ ...prev, page: 1 }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table.name]);
+
+  useEffect(() => {
     loadData(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchField, searchTerm, sortField, sortDirection, JSON.stringify(filters)]);
+  }, [table.name, searchField, searchTerm, sortField, sortDirection, JSON.stringify(filters)]);
 
   const handleSave = async (payload) => {
     try {
@@ -93,7 +138,7 @@ const TableManager = ({ table }) => {
           <p>Всего записей: {meta.total}</p>
         </div>
         <div className="actions">
-          <button className="primary" onClick={() => { setEditing(null); setShowForm(true); }}>Добавить запись</button>
+          <button className="primary" onClick={() => { setEditing(null); setShowForm(true); setError(''); }}>Добавить запись</button>
           <button onClick={() => loadData()}>Обновить</button>
         </div>
       </header>
@@ -101,14 +146,16 @@ const TableManager = ({ table }) => {
       <div className="controls">
         {table.searchable.length > 0 && (
           <div className="control-group">
-            <select value={searchField} onChange={(e) => setSearchField(e.target.value)}>
-              {table.searchable.map((field) => (
-                <option key={field} value={field}>{table.fields[field].label}</option>
-              ))}
-            </select>
+            {table.searchable.length > 1 ? (
+              <select value={searchField} onChange={(e) => setSearchField(e.target.value)}>
+                {table.searchable.map((field) => (
+                  <option key={field} value={field}>{table.fields[field].label}</option>
+                ))}
+              </select>
+            ) : null}
             <input
               type="text"
-              placeholder="Поиск"
+              placeholder={table.searchable.length === 1 ? `Поиск по ${table.fields[table.searchable[0]].label.toLowerCase()}` : "Поиск"}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -165,7 +212,7 @@ const TableManager = ({ table }) => {
                     <td key={field}>{renderCell(row[field])}</td>
                   ))}
                   <td>
-                    <button onClick={() => { setEditing(row); setShowForm(true); }}>Изменить</button>
+                    <button onClick={() => { setEditing(row); setShowForm(true); setError(''); }}>Изменить</button>
                     <button className="danger" onClick={() => handleDelete(row)}>Удалить</button>
                   </td>
                 </tr>
@@ -190,12 +237,14 @@ const TableManager = ({ table }) => {
         <div className="modal">
           <div className="modal-content">
             <h3>{editing ? 'Правка записи' : 'Новая запись'}</h3>
+            {error && <div className="error" style={{ marginBottom: '1rem' }}>{error}</div>}
             <RecordForm
               fields={table.fields}
               initialData={editing || {}}
               onSubmit={handleSave}
-              onCancel={() => { setShowForm(false); setEditing(null); }}
+              onCancel={() => { setShowForm(false); setEditing(null); setError(''); }}
               primaryKey={table.primaryKey}
+              lookupData={lookupData}
             />
           </div>
         </div>

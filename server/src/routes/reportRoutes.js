@@ -16,9 +16,11 @@ router.get('/expensive-products', async (req, res, next) => {
     const { minPrice = 50000, furnitureType, sortField = 'price', sortDirection = 'desc' } = req.query;
     const conditions = ['price >= $1'];
     const params = [Number(minPrice)];
+    let paramIndex = 2;
     if (furnitureType) {
       params.push(furnitureType);
-      conditions.push('furniture_type = $2');
+      conditions.push(`furniture_type = $${paramIndex}`);
+      paramIndex++;
     }
     let sql = `SELECT * FROM expensive_products WHERE ${conditions.join(' AND ')}`;
     sql = applySorting(sql, ['price', 'product_name'], sortField, sortDirection);

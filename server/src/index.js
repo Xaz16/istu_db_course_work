@@ -3,6 +3,7 @@ import cors from 'cors';
 import tableRoutes from './routes/tableRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
 import formsRoutes from './routes/formsRoutes.js';
+import lookupRoutes from './routes/lookupRoutes.js';
 
 const app = express();
 app.use(cors());
@@ -15,6 +16,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/tables', tableRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/forms', formsRoutes);
+app.use('/api/lookup', lookupRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err);

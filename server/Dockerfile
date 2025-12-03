@@ -2,9 +2,10 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Копируем package.json и устанавливаем зависимости
+# Копируем package.json и устанавливаем зависимости (включая dev для nodemon)
 COPY package*.json ./
-RUN npm ci --only=production
+COPY nodemon.json ./
+RUN npm ci
 
 # Копируем исходный код
 COPY . .
@@ -12,6 +13,6 @@ COPY . .
 # Открываем порт
 EXPOSE 4000
 
-# Запускаем приложение
-CMD ["node", "src/index.js"]
+# Запускаем приложение через nodemon для автоматической перезагрузки
+CMD ["npm", "run", "dev"]
 

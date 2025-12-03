@@ -1,4 +1,3 @@
-version: "3.7"
 services:
   db:
     image: postgres
@@ -9,6 +8,14 @@ services:
       - POSTGRES_PASSWORD=Passw0rd
       - POSTGRES_USER=postgres
       - POSTGRES_DB=demo
+      - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256
+    command: >
+      postgres
+      -c log_statement=all
+      -c log_destination=stderr
+      -c logging_collector=off
+      -c log_line_prefix='%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h '
+      -c log_min_duration_statement=0
     volumes:
       - ${DATA_PATH:-./tmp/postgress-demo-data}:/var/lib/postgresql/data
       - ./init_database.sql:/docker-entrypoint-initdb.d/init.sql
@@ -24,6 +31,10 @@ services:
       dockerfile: Dockerfile
     ports:
       - 4000:4000
+    volumes:
+      - ./server/src:/app/src
+      - ./server/package.json:/app/package.json
+      - ./server/nodemon.json:/app/nodemon.json
     environment:
       - DB_HOST=db
       - DB_PORT=5432
@@ -31,6 +42,7 @@ services:
       - DB_PASSWORD=Passw0rd
       - DB_NAME=demo
       - PORT=4000
+      - NODE_ENV=development
     depends_on:
       db:
         condition: service_healthy
